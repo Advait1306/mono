@@ -1,4 +1,3 @@
-import type {Row} from '@rocicorp/zero';
 import {useQuery, useZero} from '@rocicorp/zero/react';
 import {useVirtualizer} from '@tanstack/react-virtual';
 import classNames from 'classnames';
@@ -43,8 +42,15 @@ const ITEM_SIZE = 56;
 const MIN_PAGE_SIZE = 100;
 const NUM_ROWS_FOR_LOADING_SKELETON = 1;
 
+// Minimal type for anchor - only fields needed for pagination
+type AnchorRow = {
+  id: string;
+  modified: number;
+  created: number;
+};
+
 type Anchor = {
-  startRow: Row['issue'] | undefined;
+  startRow: AnchorRow | undefined;
   direction: 'forward' | 'backward';
   index: number;
 };
@@ -186,6 +192,8 @@ export function ListPage({onReady}: {onReady: () => void}) {
       ? queryAnchor.anchor
       : TOP_ANCHOR;
 
+  // oxlint-disable-next-line no-console -- Debug
+  console.log('[LIST PAGE] Building query...');
   const q = queries.issueListV2({
     listContext: listContextParams,
     userID: z.userID,
@@ -199,6 +207,8 @@ export function ListPage({onReady}: {onReady: () => void}) {
       : null,
     dir: anchor.direction,
   });
+  // oxlint-disable-next-line no-console -- Debug
+  console.log('[LIST PAGE] Query built, calling useQuery...');
 
   const [estimatedTotal, setEstimatedTotal] = useState(0);
   const [total, setTotal] = useState<number | undefined>(undefined);
@@ -209,6 +219,8 @@ export function ListPage({onReady}: {onReady: () => void}) {
     q,
     textFilterQuery === textFilter ? CACHE_NAV : CACHE_NONE,
   );
+  // oxlint-disable-next-line no-console -- Debug to verify select excludes description
+  console.log('Issues query result:', issues.slice(0, 3));
 
   useEffect(() => {
     if (issues.length > 0 || issuesResult.type === 'complete') {

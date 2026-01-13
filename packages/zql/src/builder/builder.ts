@@ -30,6 +30,7 @@ import {Filter} from '../ivm/filter.ts';
 import {FlippedJoin} from '../ivm/flipped-join.ts';
 import {Join} from '../ivm/join.ts';
 import type {Input, InputBase, Storage} from '../ivm/operator.ts';
+import {Select} from '../ivm/select.ts';
 import {Skip} from '../ivm/skip.ts';
 import type {Source, SourceInput} from '../ivm/source.ts';
 import {Take} from '../ivm/take.ts';
@@ -345,6 +346,13 @@ function buildPipelineInternal(
     for (const csq of ast.related) {
       end = applyCorrelatedSubQuery(csq, delegate, queryID, end, name, false);
     }
+  }
+
+  // Wrap with Select operator if column selection is specified
+  if (ast.select && ast.select.length > 0) {
+    const select = new Select(end, ast.select);
+    delegate.addEdge(end, select);
+    end = delegate.decorateInput(select, `${name}:select`);
   }
 
   return end;
