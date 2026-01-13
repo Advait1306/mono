@@ -347,6 +347,12 @@ export function materializeImpl<
   const {ast, format, customQueryID} = qi;
   const queryHash = qi.hash();
 
+  // DEBUG: Log AST with select
+  if (ast.select) {
+    console.log('[MATERIALIZE-DEBUG] AST with select:', JSON.stringify(ast, null, 2));
+    console.log('[MATERIALIZE-DEBUG] queryHash:', queryHash);
+  }
+
   const queryID = customQueryID
     ? hashOfNameAndArgs(customQueryID.name, customQueryID.args)
     : queryHash;

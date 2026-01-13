@@ -179,6 +179,7 @@ export const astSchema: v.Type<AST> = v.readonlyObject({
   schema: v.string().optional(),
   table: v.string(),
   alias: v.string().optional(),
+  select: v.readonlyArray(v.string()).optional(),
   where: conditionSchema.optional(),
   related: v.readonlyArray(correlatedSubquerySchema).optional(),
   limit: v.number().optional(),
@@ -222,7 +223,10 @@ export type AST = {
   //  FROM issue as outer`
   readonly alias?: string | undefined;
 
-  // `select` is missing given we return all columns for now.
+  // Optional list of columns to include in the result.
+  // If not specified, all columns are returned.
+  // Primary key columns are always included regardless of this setting.
+  readonly select?: readonly string[] | undefined;
 
   // The PipelineBuilder will pick what to use to correlate
   // a subquery with a parent query. It can choose something from the
@@ -349,6 +353,7 @@ function transformAST(ast: AST, transform: ASTTransform): Required<AST> {
     schema: ast.schema,
     table: tableName(ast.table),
     alias: ast.alias,
+    select: ast.select?.map(col => colName(col)),
     where: where ? transformWhere(where, ast.table, transform) : undefined,
     related: ast.related
       ? transform.related(

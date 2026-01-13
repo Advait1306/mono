@@ -1,3 +1,4 @@
+console.log('[PIPELINE-DRIVER] Module loaded - if you see this, tsx picked up changes');
 import type {LogContext} from '@rocicorp/logger';
 import {assert, unreachable} from '../../../../shared/src/asserts.ts';
 import {deepEqual, type JSONValue} from '../../../../shared/src/json.ts';
@@ -6,6 +7,7 @@ import type {AST} from '../../../../zero-protocol/src/ast.ts';
 import type {ClientSchema} from '../../../../zero-protocol/src/client-schema.ts';
 import type {Row} from '../../../../zero-protocol/src/data.ts';
 import type {PrimaryKey} from '../../../../zero-protocol/src/primary-key.ts';
+import {ZERO_VERSION_COLUMN_NAME} from '../replicator/schema/constants.ts';
 import {buildPipeline} from '../../../../zql/src/builder/builder.ts';
 import {
   Debug,
@@ -341,6 +343,7 @@ export class PipelineDriver {
     query: AST,
     timer: Timer,
   ): Iterable<RowChange | 'yield'> {
+    console.log(`[ADD QUERY] queryID=${queryID}, hasSelect=${!!query.select}, select=${JSON.stringify(query.select)}`);
     assert(this.initialized());
     this.#inspectorDelegate.addQuery(transformationHash, queryID, query);
     if (this.#pipelines.has(transformationHash)) {
@@ -377,6 +380,7 @@ export class PipelineDriver {
       costModel,
     );
     const schema = input.getSchema();
+    console.log(`[SCHEMA DEBUG] table=${schema.tableName}, hasSelect=${!!schema.select}, select=${JSON.stringify(schema.select)}`);
     input.setOutput({
       push: change => {
         const streamer = this.#streamer;
@@ -764,7 +768,7 @@ class Streamer {
     op: 'add' | 'remove' | 'edit',
     nodes: () => Iterable<Node | 'yield'>,
   ): Iterable<RowChange | 'yield'> {
-    const {tableName: table, system} = schema;
+    const {tableName: table, system, select} = schema;
 
     const primaryKey = must(this.#primaryKeys.get(table));
 
@@ -782,12 +786,25 @@ class Streamer {
       const {relationships, row} = node;
       const rowKey = getRowKey(primaryKey, row);
 
+      // Project row to selected columns if select is specified
+      const projectedRow =
+        op === 'remove'
+          ? undefined
+          : select
+            ? projectRow(row, select, primaryKey)
+            : row;
+
+      // Debug logging for select
+      if (select) {
+        console.log(`[SELECT DEBUG] table=${table}, select=${JSON.stringify(select)}, originalKeys=${Object.keys(row)}, projectedKeys=${projectedRow ? Object.keys(projectedRow) : 'undefined'}`);
+      }
+
       yield {
         type: op,
         queryHash,
         table,
         rowKey,
-        row: op === 'remove' ? undefined : row,
+        row: projectedRow,
       } as RowChange;
 
       for (const [relationship, children] of Object.entries(relationships)) {
@@ -796,6 +813,39 @@ class Streamer {
       }
     }
   }
+}
+
+/**
+ * Projects a row to only include the specified columns, primary key columns,
+ * and the version column.
+ */
+function projectRow(
+  row: Row,
+  select: readonly string[],
+  primaryKey: PrimaryKey,
+): Row {
+  const projected: Record<string, unknown> = {};
+
+  // Always include the version column
+  if (ZERO_VERSION_COLUMN_NAME in row) {
+    projected[ZERO_VERSION_COLUMN_NAME] = row[ZERO_VERSION_COLUMN_NAME];
+  }
+
+  // Always include primary key columns
+  for (const col of primaryKey) {
+    if (col in row) {
+      projected[col] = row[col];
+    }
+  }
+
+  // Include selected columns
+  for (const col of select) {
+    if (col in row) {
+      projected[col] = row[col];
+    }
+  }
+
+  return projected as Row;
 }
 
 function* toAdds(nodes: Iterable<Node | 'yield'>): Iterable<Change | 'yield'> {

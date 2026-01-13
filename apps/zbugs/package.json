@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "tsx node_modules/vite/bin/vite.js",
     "build": "tsc && vite build",
     "check-types": "tsc -p tsconfig.json && tsc -p tsconfig.node.json",
     "check-types:client:watch": "tsc -p tsconfig.json --watch",

@@ -317,7 +317,17 @@ function applyEdit(
   schema: SourceSchema,
   withIDs: boolean,
 ) {
-  Object.assign(existing, change.node.row);
+  const projectedRow = projectRow(change.node.row, schema);
+
+  // Remove old column properties that are not in the projected row.
+  // Keep symbol properties and relationship properties.
+  for (const key of Object.keys(existing)) {
+    if (!(key in projectedRow) && !(key in schema.relationships)) {
+      delete existing[key];
+    }
+  }
+
+  Object.assign(existing, projectedRow);
   if (withIDs) {
     existing[idSymbol] = makeID(change.node.row, schema);
   }
@@ -404,10 +414,15 @@ function makeNewMetaEntry(
   withIDs: boolean,
   rc: number,
 ): MetaEntry {
+  const projectedRow = projectRow(row, schema);
   if (withIDs) {
-    return {...row, [refCountSymbol]: rc, [idSymbol]: makeID(row, schema)};
+    return {
+      ...projectedRow,
+      [refCountSymbol]: rc,
+      [idSymbol]: makeID(row, schema),
+    };
   }
-  return {...row, [refCountSymbol]: rc};
+  return {...projectedRow, [refCountSymbol]: rc};
 }
 function makeID(row: Row, schema: SourceSchema) {
   // optimization for case of non-compound primary key
@@ -415,4 +430,34 @@ function makeID(row: Row, schema: SourceSchema) {
     return JSON.stringify(row[schema.primaryKey[0]]);
   }
   return JSON.stringify(schema.primaryKey.map(k => row[k]));
+}
+
+/**
+ * Projects a row to only include the selected columns from the schema.
+ * Primary key columns are always included regardless of the select list.
+ * If schema.select is undefined, all columns are included.
+ */
+function projectRow(row: Row, schema: SourceSchema): Row {
+  const {select, primaryKey} = schema;
+  if (select === undefined) {
+    return row;
+  }
+
+  const projected: Record<string, unknown> = {};
+
+  // Always include primary key columns
+  for (const col of primaryKey) {
+    if (col in row) {
+      projected[col] = row[col];
+    }
+  }
+
+  // Include selected columns
+  for (const col of select) {
+    if (col in row) {
+      projected[col] = row[col];
+    }
+  }
+
+  return projected as Row;
 }

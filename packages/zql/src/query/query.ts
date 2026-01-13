@@ -104,6 +104,16 @@ export type PullRow<
   >;
 } & {};
 
+/**
+ * Narrows TReturn to only include the selected columns from the base row,
+ * while preserving any relationship properties that were added via `.related()`.
+ */
+type SelectReturn<
+  TReturn,
+  TBaseRow,
+  TSelectedColumns extends keyof TBaseRow,
+> = Pick<TBaseRow, TSelectedColumns> & Omit<TReturn, keyof TBaseRow>;
+
 type RowNamespace<S extends Schema | TypeError> = S extends Schema
   ? {
       readonly [K in keyof S['tables'] &
@@ -282,6 +292,27 @@ export interface Query<
     field: TSelector,
     direction: 'asc' | 'desc',
   ): Query<TTable, TSchema, TReturn>;
+
+  /**
+   * Selects specific columns to include in the query results.
+   * Only the specified columns will be synced from the server.
+   * Primary key columns are always included regardless of selection.
+   *
+   * @example
+   * ```ts
+   * // Only sync id and title columns
+   * const query = z.query.issue.select('id', 'title');
+   * ```
+   */
+  select<
+    TColumns extends Selector<PullTableSchema<TTable, TSchema>> & string,
+  >(
+    ...columns: TColumns[]
+  ): Query<
+    TTable,
+    TSchema,
+    SelectReturn<TReturn, PullRow<TTable, TSchema>, TColumns>
+  >;
 
   one(): Query<TTable, TSchema, TReturn | undefined>;
 

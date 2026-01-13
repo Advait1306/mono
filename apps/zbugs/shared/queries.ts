@@ -347,6 +347,17 @@ export function buildListQuery(args: ListQueryArgs) {
   } = args;
 
   let q = issueQuery
+    .select(
+      'id',
+      'title',
+      'open',
+      'modified',
+      'created',
+      'projectID',
+      'creatorID',
+      'assigneeID',
+      'visibility',
+    )
     .related('viewState', q =>
       (args.userID
         ? q.where('userID', args.userID)

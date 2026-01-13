@@ -282,7 +282,19 @@ export class QueryManager implements InspectorDelegate {
   }
 
   addLegacy(ast: AST, ttl: TTL, gotCallback?: GotCallback): () => void {
+    // DEBUG: Log when addLegacy is called with select
+    if (ast.select) {
+      console.log('[QUERY-MANAGER-DEBUG] addLegacy called with select:', JSON.stringify(ast.select));
+      console.log('[QUERY-MANAGER-DEBUG] full AST:', JSON.stringify(ast, null, 2));
+    }
+
     const normalized = normalizeAST(ast);
+
+    // DEBUG: Log normalized AST
+    if (ast.select) {
+      console.log('[QUERY-MANAGER-DEBUG] normalized AST:', JSON.stringify(normalized, null, 2));
+    }
+
     const astHash = hashOfAST(normalized);
     return this.#add(
       astHash,
@@ -302,6 +314,11 @@ export class QueryManager implements InspectorDelegate {
     ttl: TTL,
     gotCallback?: GotCallback,
   ) {
+    // DEBUG: Log when #add is called with select
+    if (normalized.select) {
+      console.log('[QUERY-MANAGER-DEBUG] #add called with select, queryId:', queryId);
+    }
+
     assert(
       (name === undefined) === (args === undefined),
       'If name is defined, args must be defined',
@@ -312,6 +329,11 @@ export class QueryManager implements InspectorDelegate {
     if (!entry) {
       normalized = mapAST(normalized, this.#clientToServer);
 
+      // DEBUG: Log after mapping to server names
+      if (normalized.select) {
+        console.log('[QUERY-MANAGER-DEBUG] After mapAST, normalized.select:', JSON.stringify(normalized.select));
+      }
+
       entry = {
         normalized,
         name,
@@ -321,6 +343,12 @@ export class QueryManager implements InspectorDelegate {
         ttl,
       };
       this.#queries.set(queryId, entry);
+
+      // DEBUG: Log when queueing the query change
+      if (normalized.select) {
+        console.log('[QUERY-MANAGER-DEBUG] Queueing query change with select');
+      }
+
       this.#queueQueryChange({
         op: 'put',
         hash: queryId,

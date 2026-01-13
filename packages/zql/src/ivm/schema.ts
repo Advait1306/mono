@@ -22,4 +22,8 @@ export type SourceSchema = {
   readonly system: System;
   readonly compareRows: Comparator;
   readonly sort: Ordering;
+  // Optional list of columns to include when syncing to the client.
+  // If not specified, all columns are synced.
+  // Primary key columns are always included regardless of this setting.
+  readonly select?: readonly string[] | undefined;
 };

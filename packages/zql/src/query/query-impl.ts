@@ -456,6 +456,30 @@ export class QueryImpl<
     );
   };
 
+  select = <TColumns extends keyof TSchema['tables'][TTable]['columns']>(
+    ...columns: TColumns[]
+  ): Query<TTable, TSchema, any> => {
+    if (columns.length === 0) {
+      throw new Error('select() requires at least one column');
+    }
+
+    // Merge with existing select if present
+    const existingSelect = this.#ast.select ?? [];
+    const newColumns = columns.map(c => c as string);
+    const mergedSelect = [...new Set([...existingSelect, ...newColumns])];
+
+    return this.#newQuery(
+      this.#tableName,
+      {
+        ...this.#ast,
+        select: mergedSelect,
+      },
+      this.format,
+      this.customQueryID,
+      this.#currentJunction,
+    );
+  };
+
   #exists = (
     relationship: string,
     cb: ((query: AnyQuery) => AnyQuery) | undefined,
