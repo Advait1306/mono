@@ -349,7 +349,6 @@ export function buildListQuery(args: ListQueryArgs) {
   let q = issueQuery
     .select(
       'id',
-      'shortID',
       'title',
       'open',
       'modified',

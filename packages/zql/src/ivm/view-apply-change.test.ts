@@ -1415,4 +1415,442 @@ describe('applyChange', () => {
       `);
     });
   });
+
+  describe('Select column projection', () => {
+    test('add with select only includes selected columns and primary key', () => {
+      const schema: SourceSchema = {
+        tableName: 'user',
+        columns: {
+          id: {type: 'string'},
+          name: {type: 'string'},
+          email: {type: 'string'},
+          age: {type: 'number'},
+        },
+        primaryKey: ['id'],
+        sort: [['id', 'asc']],
+        system: 'client',
+        relationships: {},
+        isHidden: false,
+        compareRows: makeComparator([['id', 'asc']]),
+        select: ['name'], // Only select name, id should be included as primary key
+      };
+      const root: Entry = {'': []};
+      const format: Format = {
+        singular: false,
+        relationships: {},
+      };
+
+      applyChange(
+        root,
+        {
+          type: 'add',
+          node: {
+            row: {
+              id: '1',
+              name: 'Alice',
+              email: 'alice@test.com',
+              age: 30,
+            },
+            relationships: {},
+          },
+        },
+        schema,
+        '',
+        format,
+        true,
+      );
+
+      // Should only have id (primary key) and name (selected), not email or age
+      expect(root).toMatchInlineSnapshot(`
+        {
+          "": [
+            {
+              "id": "1",
+              "name": "Alice",
+              Symbol(rc): 1,
+              Symbol(id): ""1"",
+            },
+          ],
+        }
+      `);
+    });
+
+    test('add without select includes all columns', () => {
+      const schema: SourceSchema = {
+        tableName: 'user',
+        columns: {
+          id: {type: 'string'},
+          name: {type: 'string'},
+          email: {type: 'string'},
+        },
+        primaryKey: ['id'],
+        sort: [['id', 'asc']],
+        system: 'client',
+        relationships: {},
+        isHidden: false,
+        compareRows: makeComparator([['id', 'asc']]),
+        // No select - all columns should be included
+      };
+      const root: Entry = {'': []};
+      const format: Format = {
+        singular: false,
+        relationships: {},
+      };
+
+      applyChange(
+        root,
+        {
+          type: 'add',
+          node: {
+            row: {
+              id: '1',
+              name: 'Alice',
+              email: 'alice@test.com',
+            },
+            relationships: {},
+          },
+        },
+        schema,
+        '',
+        format,
+        true,
+      );
+
+      expect(root).toMatchInlineSnapshot(`
+        {
+          "": [
+            {
+              "email": "alice@test.com",
+              "id": "1",
+              "name": "Alice",
+              Symbol(rc): 1,
+              Symbol(id): ""1"",
+            },
+          ],
+        }
+      `);
+    });
+
+    test('edit with select only includes selected columns', () => {
+      const schema: SourceSchema = {
+        tableName: 'user',
+        columns: {
+          id: {type: 'string'},
+          name: {type: 'string'},
+          email: {type: 'string'},
+          age: {type: 'number'},
+        },
+        primaryKey: ['id'],
+        sort: [['id', 'asc']],
+        system: 'client',
+        relationships: {},
+        isHidden: false,
+        compareRows: makeComparator([['id', 'asc']]),
+        select: ['name'],
+      };
+      const root: Entry = {'': []};
+      const format: Format = {
+        singular: false,
+        relationships: {},
+      };
+
+      // Add initial entry
+      applyChange(
+        root,
+        {
+          type: 'add',
+          node: {
+            row: {id: '1', name: 'Alice', email: 'alice@test.com', age: 30},
+            relationships: {},
+          },
+        },
+        schema,
+        '',
+        format,
+        true,
+      );
+
+      // Edit the entry - row has all columns but only selected should appear
+      applyChange(
+        root,
+        {
+          type: 'edit',
+          oldNode: {row: {id: '1', name: 'Alice'}},
+          node: {
+            row: {id: '1', name: 'Alicia', email: 'alicia@test.com', age: 31},
+          },
+        },
+        schema,
+        '',
+        format,
+        true,
+      );
+
+      // Should still only have id and name
+      expect(root).toMatchInlineSnapshot(`
+        {
+          "": [
+            {
+              "id": "1",
+              "name": "Alicia",
+              Symbol(rc): 1,
+              Symbol(id): ""1"",
+            },
+          ],
+        }
+      `);
+    });
+
+    test('edit removes columns not in select from existing entry', () => {
+      const schema: SourceSchema = {
+        tableName: 'user',
+        columns: {
+          id: {type: 'string'},
+          name: {type: 'string'},
+          email: {type: 'string'},
+        },
+        primaryKey: ['id'],
+        sort: [['id', 'asc']],
+        system: 'client',
+        relationships: {},
+        isHidden: false,
+        compareRows: makeComparator([['id', 'asc']]),
+        select: ['name'],
+      };
+      const root: Entry = {'': []};
+      const format: Format = {
+        singular: false,
+        relationships: {},
+      };
+
+      // First add the entry without select to simulate old data
+      const schemaWithoutSelect: SourceSchema = {
+        ...schema,
+        select: undefined,
+      };
+      applyChange(
+        root,
+        {
+          type: 'add',
+          node: {
+            row: {id: '1', name: 'Alice', email: 'alice@test.com'},
+            relationships: {},
+          },
+        },
+        schemaWithoutSelect,
+        '',
+        format,
+        true,
+      );
+
+      // Verify that the entry has the email column
+      expect(root).toMatchInlineSnapshot(`
+        {
+          "": [
+            {
+              "email": "alice@test.com",
+              "id": "1",
+              "name": "Alice",
+              Symbol(rc): 1,
+              Symbol(id): ""1"",
+            },
+          ],
+        }
+      `);
+
+      // Now apply an edit with select - this should remove the email column
+      applyChange(
+        root,
+        {
+          type: 'edit',
+          oldNode: {row: {id: '1', name: 'Alice'}},
+          node: {row: {id: '1', name: 'Alicia', email: 'alicia@test.com'}},
+        },
+        schema,
+        '',
+        format,
+        true,
+      );
+
+      // The email column should be removed
+      expect(root).toMatchInlineSnapshot(`
+        {
+          "": [
+            {
+              "id": "1",
+              "name": "Alicia",
+              Symbol(rc): 1,
+              Symbol(id): ""1"",
+            },
+          ],
+        }
+      `);
+    });
+
+    test('select with compound primary key includes all pk columns', () => {
+      const schema: SourceSchema = {
+        tableName: 'order_item',
+        columns: {
+          orderId: {type: 'string'},
+          productId: {type: 'string'},
+          quantity: {type: 'number'},
+          price: {type: 'number'},
+        },
+        primaryKey: ['orderId', 'productId'],
+        sort: [
+          ['orderId', 'asc'],
+          ['productId', 'asc'],
+        ],
+        system: 'client',
+        relationships: {},
+        isHidden: false,
+        compareRows: makeComparator([
+          ['orderId', 'asc'],
+          ['productId', 'asc'],
+        ]),
+        select: ['quantity'], // Only select quantity, but both pk columns should be included
+      };
+      const root: Entry = {'': []};
+      const format: Format = {
+        singular: false,
+        relationships: {},
+      };
+
+      applyChange(
+        root,
+        {
+          type: 'add',
+          node: {
+            row: {
+              orderId: 'o1',
+              productId: 'p1',
+              quantity: 5,
+              price: 100,
+            },
+            relationships: {},
+          },
+        },
+        schema,
+        '',
+        format,
+        true,
+      );
+
+      // Should have both primary key columns and quantity, but not price
+      expect(root).toMatchInlineSnapshot(`
+        {
+          "": [
+            {
+              "orderId": "o1",
+              "productId": "p1",
+              "quantity": 5,
+              Symbol(rc): 1,
+              Symbol(id): "["o1","p1"]",
+            },
+          ],
+        }
+      `);
+    });
+
+    test('select preserves relationship properties during edit', () => {
+      const schema: SourceSchema = {
+        tableName: 'post',
+        columns: {
+          id: {type: 'string'},
+          title: {type: 'string'},
+          body: {type: 'string'},
+        },
+        primaryKey: ['id'],
+        sort: [['id', 'asc']],
+        system: 'client',
+        relationships: {
+          comments: {
+            tableName: 'comment',
+            columns: {
+              id: {type: 'string'},
+              text: {type: 'string'},
+            },
+            primaryKey: ['id'],
+            sort: [['id', 'asc']],
+            system: 'client',
+            relationships: {},
+            isHidden: false,
+            compareRows: makeComparator([['id', 'asc']]),
+          },
+        },
+        isHidden: false,
+        compareRows: makeComparator([['id', 'asc']]),
+        select: ['title'], // Only select title
+      };
+      const root: Entry = {'': []};
+      const format: Format = {
+        singular: false,
+        relationships: {
+          comments: {
+            singular: false,
+            relationships: {},
+          },
+        },
+      };
+
+      // Add a post
+      applyChange(
+        root,
+        {
+          type: 'add',
+          node: {
+            row: {id: '1', title: 'Hello', body: 'World'},
+            relationships: {
+              comments: () => [
+                {
+                  row: {id: 'c1', text: 'Great post!'},
+                  relationships: {},
+                },
+              ],
+            },
+          },
+        },
+        schema,
+        '',
+        format,
+        true,
+      );
+
+      // Edit the post - should keep comments relationship
+      applyChange(
+        root,
+        {
+          type: 'edit',
+          oldNode: {row: {id: '1', title: 'Hello'}},
+          node: {row: {id: '1', title: 'Hello World', body: 'Updated body'}},
+        },
+        schema,
+        '',
+        format,
+        true,
+      );
+
+      // Should have id, title (selected), comments (relationship), but not body
+      expect(root).toMatchInlineSnapshot(`
+        {
+          "": [
+            {
+              "comments": [
+                {
+                  "id": "c1",
+                  "text": "Great post!",
+                  Symbol(rc): 1,
+                  Symbol(id): ""c1"",
+                },
+              ],
+              "id": "1",
+              "title": "Hello World",
+              Symbol(rc): 1,
+              Symbol(id): ""1"",
+            },
+          ],
+        }
+      `);
+    });
+  });
 });
